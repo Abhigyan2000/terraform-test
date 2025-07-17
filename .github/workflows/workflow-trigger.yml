@@ -48,8 +48,6 @@ jobs:
           # Validate that the resource type has a corresponding directory
           if [ ! -d "$RESOURCE_TYPE_DIR" ]; then
             echo "Error: No directory found for resource type '$RESOURCE_TYPE'"
-            echo "Available resource types:"
-            ls -d */ | cut -f1 -d'/' | grep -v "\.github\|images\|sample-payload"
             exit 1
           fi
           
