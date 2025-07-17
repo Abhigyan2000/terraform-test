@@ -64,21 +64,6 @@ inputs = {
   bucket = "${local.payload.ApplicationName}-${local.payload.EnvironmentId}-${local.payload.Suffix}"
   
   # S3 bucket configuration
-  acl           = try(local.s3_config.acl, "private")
-  force_destroy = try(local.s3_config.force_destroy, false)
-  
-  versioning = {
-    enabled = try(local.s3_config.versioning_enabled, true)
-  }
-  
-  server_side_encryption_configuration = {
-    rule = {
-      apply_server_side_encryption_by_default = {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
-  
   block_public_acls       = try(local.s3_config.block_public_acls, true)
   block_public_policy     = try(local.s3_config.block_public_policy, true)
   ignore_public_acls      = try(local.s3_config.ignore_public_acls, true)

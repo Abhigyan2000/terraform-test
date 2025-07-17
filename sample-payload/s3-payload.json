@@ -2,6 +2,6 @@
   "ref": "main",
   "inputs": {
     "RequestParameters": "{\"RequestId\":\"2222222\",\"RequestType\":\"create\",\"ResourceType\":\"s3\",\"AccountId\":\"213160125479\",\"AccountAlias\":\"account-alias\",\"RegionId\":\"us-west-2\",\"ApplicationName\":\"terastest\",\"DivisionName\":\"division-name\",\"EnvironmentId\":\"dev\",\"Suffix\":\"storage\"}",
-    "ResourceParameters": "[{\"S3\":{\"acl\":\"private\",\"force_destroy\":false,\"versioning_enabled\":true,\"block_public_acls\":true,\"block_public_policy\":true,\"ignore_public_acls\":true,\"restrict_public_buckets\":true}}]"
+    "ResourceParameters": "[{\"S3\":{\"block_public_acls\":true,\"block_public_policy\":true,\"ignore_public_acls\":true,\"restrict_public_buckets\":true}}]"
   }
 }
