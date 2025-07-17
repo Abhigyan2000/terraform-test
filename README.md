@@ -17,7 +17,7 @@ This specific repository contains example code that shows how to create AWS VPC 
 
 - AWS account with access to Amazon VPC
 - GitHub repository with pull request workflow
-- Appropriate IAM roles and permissions configured
+- Appropriate IAM roles and permissions configured.
 
 ### Environment Configuration
 
