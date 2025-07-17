@@ -1,0 +1,19 @@
+{
+  "RequestId": "1111111",
+  "RequestType": "create",
+  "ResourceType": "vpc",
+  "AccountId": "213160125479",
+  "AccountAlias": "account-alias",
+  "RegionId": "us-west-2",
+  "ApplicationName": "terratest",
+  "DivisionName": "division-name",
+  "EnvironmentId": "dev",
+  "Suffix": "poc27",
+  "Parameters": [
+    {
+      "VPC": {
+        "vpc_cidr": "10.0.0.0/16"
+      }
+    }
+  ]
+}
