@@ -42,6 +42,17 @@ jobs:
           ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId')
           SUFFIX=$(echo "$REQUEST_PARAMS" | jq -r '.Suffix')
           
+          # Convert resource type to lowercase for directory matching
+          RESOURCE_TYPE_DIR=$(echo "$RESOURCE_TYPE" | tr '[:upper:]' '[:lower:]')
+          
+          # Validate that the resource type has a corresponding directory
+          if [ ! -d "$RESOURCE_TYPE_DIR" ]; then
+            echo "Error: No directory found for resource type '$RESOURCE_TYPE'"
+            echo "Available resource types:"
+            ls -d */ | cut -f1 -d'/' | grep -v "\.github\|images\|sample-payload"
+            exit 1
+          fi
+          
           DIR_PATH="${RESOURCE_TYPE}/${ACCOUNT_ALIAS}/${REGION_ID}/${APPLICATION_NAME}_${DIVISION_NAME}_${RESOURCE_TYPE}_${SUFFIX}"
           mkdir -p "$DIR_PATH"
           

@@ -86,6 +86,7 @@ jobs:
         
         REGION=$(jq -r '.RegionId // .region // .Region // ""' "$FIRST_PAYLOAD")
         REQUEST_TYPE=$(jq -r '.RequestType // ""' "$FIRST_PAYLOAD")
+        RESOURCE_TYPE=$(jq -r '.ResourceType // ""' "$FIRST_PAYLOAD")
         
         if [ -z "$REGION" ]; then
           echo "Region not found in payload.json"
@@ -94,12 +95,14 @@ jobs:
         
         echo "Region: $REGION"
         echo "Request Type: $REQUEST_TYPE"
+        echo "Resource Type: $RESOURCE_TYPE"
         
         echo "region=$REGION" >> $GITHUB_OUTPUT
         echo "request_type=$REQUEST_TYPE" >> $GITHUB_OUTPUT
+        echo "resource_type=$RESOURCE_TYPE" >> $GITHUB_OUTPUT
 
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v1
       with:
         role-to-assume: ${{ vars.aws_role }}
         aws-region: ${{ steps.read_payload.outputs.region }}
@@ -108,6 +111,18 @@ jobs:
       run: |
         ROOT_DIR=$GITHUB_WORKSPACE
         CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+        RESOURCE_TYPE="${{ steps.read_payload.outputs.resource_type }}"
+        
+        # Convert resource type to lowercase for directory matching
+        RESOURCE_TYPE_DIR=$(echo "$RESOURCE_TYPE" | tr '[:upper:]' '[:lower:]')
+        
+        # Check if resource type directory exists
+        if [ ! -d "$ROOT_DIR/$RESOURCE_TYPE_DIR" ]; then
+          echo "Error: Directory for resource type '$RESOURCE_TYPE' not found at $ROOT_DIR/$RESOURCE_TYPE_DIR"
+          echo "Available resource directories:"
+          ls -d $ROOT_DIR/*/ | grep -v "\.github\|images\|sample-payload"
+          exit 1
+        fi
         
         while IFS= read -r payload; do
           if [ -z "$payload" ]; then
@@ -121,8 +136,13 @@ jobs:
           
           export TF_VAR_payload=$(cat $payload)
 
-          echo $PWD
-          echo $ROOT_DIR/$relative_path
+          echo "Current directory: $PWD"
+          echo "Payload directory: $ROOT_DIR/$relative_path"
+          echo "Resource type directory: $ROOT_DIR/$RESOURCE_TYPE_DIR"
+          
+          # Change to the resource type directory where terragrunt.hcl is located
+          cd "$ROOT_DIR/$RESOURCE_TYPE_DIR"
+          echo "Changed to directory: $(pwd)"
           
           if [ "${{ steps.read_payload.outputs.request_type }}" == "delete" ]; then
             echo "Executing destroy operation..."
