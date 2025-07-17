@@ -99,7 +99,7 @@ jobs:
         echo "request_type=$REQUEST_TYPE" >> $GITHUB_OUTPUT
 
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ vars.aws_role }}
         aws-region: ${{ steps.read_payload.outputs.region }}
