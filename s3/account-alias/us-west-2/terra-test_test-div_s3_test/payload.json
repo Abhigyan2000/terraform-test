@@ -1,0 +1,22 @@
+{
+  "RequestId": "2222222",
+  "RequestType": "delete",
+  "ResourceType": "s3",
+  "AccountId": "213160125479",
+  "AccountAlias": "account-alias",
+  "RegionId": "us-west-2",
+  "ApplicationName": "terra-test",
+  "DivisionName": "test-div",
+  "EnvironmentId": "dev",
+  "Suffix": "test",
+  "Parameters": [
+    {
+      "S3": {
+        "block_public_acls": true,
+        "block_public_policy": true,
+        "ignore_public_acls": true,
+        "restrict_public_buckets": true
+      }
+    }
+  ]
+}
