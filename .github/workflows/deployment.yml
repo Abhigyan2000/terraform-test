@@ -85,7 +85,6 @@ jobs:
         FIRST_PAYLOAD=$(echo "$CHANGED_FILES" | head -n 1)
         echo "Processing payload file: $FIRST_PAYLOAD"
         
-        # Parse the payload structure - it's a flat JSON structure from workflow-trigger.yml
         REGION=$(jq -r '.RegionId // .region // .Region // ""' "$FIRST_PAYLOAD")
         REQUEST_TYPE=$(jq -r '.RequestType // ""' "$FIRST_PAYLOAD")
         RESOURCE_TYPE=$(jq -r '.ResourceType // ""' "$FIRST_PAYLOAD")
@@ -126,8 +125,13 @@ jobs:
           exit 1
         fi
         
-        # Initialize changelog as JSON array
-        echo "[]" > $GITHUB_WORKSPACE/changelog.json
+        # Initialize or load existing changelog
+        if [ -f "$GITHUB_WORKSPACE/changelog.json" ]; then
+          echo "Loading existing changelog"
+        else
+          echo "Creating new changelog"
+          echo "[]" > $GITHUB_WORKSPACE/changelog.json
+        fi
         
         while IFS= read -r payload; do
           if [ -z "$payload" ]; then
@@ -136,10 +140,14 @@ jobs:
           
           echo "Processing payload file: $payload"
           
+          # Store the full path to payload before changing directory
+          FULL_PAYLOAD_PATH="$ROOT_DIR/$payload"
+          echo "Full payload path: $FULL_PAYLOAD_PATH"
+          
           relative_path=$(dirname $payload | sed "s|$ROOT_DIR/||")
           echo "Relative path: $relative_path"
           
-          export TF_VAR_payload=$(cat $payload)
+          export TF_VAR_payload=$(cat "$FULL_PAYLOAD_PATH")
 
           echo "Current directory: $PWD"
           echo "Payload directory: $ROOT_DIR/$relative_path"
@@ -159,15 +167,17 @@ jobs:
               --terragrunt-non-interactive
             terragrunt run-all output -json > $GITHUB_WORKSPACE/output.json
             
-            # Create changelog entry with request details
-            # Parse the flat JSON structure from workflow-trigger.yml
-            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$payload")
-            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$payload")
-            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$payload")
-            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$payload")
+            # Create changelog entry with deployment results and metadata
+            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$FULL_PAYLOAD_PATH")
+            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$FULL_PAYLOAD_PATH")
+            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$FULL_PAYLOAD_PATH")
+            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$FULL_PAYLOAD_PATH")
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
-            # Create changelog entry and append to array
+            # Read the Terraform outputs
+            TERRAFORM_OUTPUTS=$(cat $GITHUB_WORKSPACE/output.json)
+            
+            # Create changelog entry with both metadata and actual outputs
             CHANGELOG_ENTRY=$(jq -n \
               --arg timestamp "$TIMESTAMP" \
               --arg request_id "$REQUEST_ID" \
@@ -179,6 +189,7 @@ jobs:
               --arg region "${{ steps.read_payload.outputs.region }}" \
               --arg status "deployed" \
               --arg payload_path "$relative_path" \
+              --argjson terraform_outputs "$TERRAFORM_OUTPUTS" \
               '{
                 timestamp: $timestamp,
                 request_id: $request_id,
@@ -189,10 +200,11 @@ jobs:
                 request_type: $request_type,
                 region: $region,
                 status: $status,
-                payload_path: $payload_path
+                payload_path: $payload_path,
+                terraform_outputs: $terraform_outputs
               }')
             
-            # Add entry to changelog array
+            # Append entry to changelog array
             jq --argjson entry "$CHANGELOG_ENTRY" '. += [$entry]' $GITHUB_WORKSPACE/changelog.json > $GITHUB_WORKSPACE/changelog_temp.json
             mv $GITHUB_WORKSPACE/changelog_temp.json $GITHUB_WORKSPACE/changelog.json
           fi
