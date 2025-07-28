@@ -191,8 +191,7 @@ jobs:
                 resource_type: $resource_type,
                 request_type: $request_type,
                 region: $region,
-                status: $status,
-                terraform_outputs: null
+                status: $status
               }')
             
             # Append entry to changelog array
@@ -210,17 +209,14 @@ jobs:
               --terragrunt-non-interactive
             terragrunt run-all output -json > $GITHUB_WORKSPACE/output.json
             
-            # Create changelog entry with deployment results and metadata
+            # Create changelog entry with deployment metadata
             REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$FULL_PAYLOAD_PATH")
             ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$FULL_PAYLOAD_PATH")
             APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$FULL_PAYLOAD_PATH")
             ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$FULL_PAYLOAD_PATH")
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
-            # Read the Terraform outputs
-            TERRAFORM_OUTPUTS=$(cat $GITHUB_WORKSPACE/output.json)
-            
-            # Create changelog entry with both metadata and actual outputs
+            # Create changelog entry with metadata only
             CHANGELOG_ENTRY=$(jq -n \
               --arg timestamp "$TIMESTAMP" \
               --arg request_id "$REQUEST_ID" \
@@ -231,7 +227,6 @@ jobs:
               --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
               --arg region "${{ steps.read_payload.outputs.region }}" \
               --arg status "deployed" \
-              --argjson terraform_outputs "$TERRAFORM_OUTPUTS" \
               '{
                 timestamp: $timestamp,
                 request_id: $request_id,
@@ -241,8 +236,7 @@ jobs:
                 resource_type: $resource_type,
                 request_type: $request_type,
                 region: $region,
-                status: $status,
-                terraform_outputs: $terraform_outputs
+                status: $status
               }')
             
             # Append entry to changelog array
