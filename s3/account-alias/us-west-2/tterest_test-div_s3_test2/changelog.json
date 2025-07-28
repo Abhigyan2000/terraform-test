@@ -1,6 +1,6 @@
 [
   {
-    "timestamp": "2025-07-28T03:27:08Z",
+    "timestamp": "2025-07-28T03:37:44Z",
     "request_id": "2222222",
     "account_id": "213160125479",
     "application_name": "tterest",
@@ -9,7 +9,6 @@
     "request_type": "create",
     "region": "us-west-2",
     "status": "deployed",
-    "payload_path": "s3/account-alias/us-west-2/tterest_test-div_s3_test2",
     "terraform_outputs": {
       "s3_bucket_arn": {
         "sensitive": false,
