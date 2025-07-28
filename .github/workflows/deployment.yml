@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       relative_path: ${{ steps.get_path.outputs.relative_path }}
+      request_type: ${{ steps.read_payload.outputs.request_type }}
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -84,9 +85,11 @@ jobs:
         FIRST_PAYLOAD=$(echo "$CHANGED_FILES" | head -n 1)
         echo "Processing payload file: $FIRST_PAYLOAD"
         
-        REGION=$(jq -r '.RegionId // .region // .Region // ""' "$FIRST_PAYLOAD")
-        REQUEST_TYPE=$(jq -r '.RequestType // ""' "$FIRST_PAYLOAD")
-        RESOURCE_TYPE=$(jq -r '.ResourceType // ""' "$FIRST_PAYLOAD")
+        # Parse the nested JSON structure correctly - RequestParameters is a JSON string
+        REQUEST_PARAMS=$(jq -r '.inputs.RequestParameters // "{}"' "$FIRST_PAYLOAD")
+        REGION=$(echo "$REQUEST_PARAMS" | jq -r '.RegionId // .region // .Region // ""')
+        REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType // ""')
+        RESOURCE_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.ResourceType // ""')
         
         if [ -z "$REGION" ]; then
           echo "Region not found in payload.json"
@@ -124,6 +127,9 @@ jobs:
           exit 1
         fi
         
+        # Initialize changelog as JSON array
+        echo "[]" > $GITHUB_WORKSPACE/changelog.json
+        
         while IFS= read -r payload; do
           if [ -z "$payload" ]; then
             continue
@@ -153,9 +159,55 @@ jobs:
             terragrunt run-all apply \
               --terragrunt-non-interactive
             terragrunt run-all output -json > $GITHUB_WORKSPACE/output.json
+            
+            # Create changelog entry with request details
+            # Parse the nested JSON structure correctly - RequestParameters is a JSON string
+            REQUEST_PARAMS=$(jq -r '.inputs.RequestParameters // "{}"' "$payload")
+            REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId // "N/A"')
+            ACCOUNT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.AccountId // "N/A"')
+            APPLICATION_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.ApplicationName // "N/A"')
+            ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId // "N/A"')
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            # Create changelog entry and append to array
+            CHANGELOG_ENTRY=$(jq -n \
+              --arg timestamp "$TIMESTAMP" \
+              --arg request_id "$REQUEST_ID" \
+              --arg account_id "$ACCOUNT_ID" \
+              --arg application_name "$APPLICATION_NAME" \
+              --arg environment_id "$ENVIRONMENT_ID" \
+              --arg resource_type "$RESOURCE_TYPE" \
+              --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
+              --arg region "${{ steps.read_payload.outputs.region }}" \
+              --arg status "deployed" \
+              --arg payload_path "$relative_path" \
+              '{
+                timestamp: $timestamp,
+                request_id: $request_id,
+                account_id: $account_id,
+                application_name: $application_name,
+                environment_id: $environment_id,
+                resource_type: $resource_type,
+                request_type: $request_type,
+                region: $region,
+                status: $status,
+                payload_path: $payload_path
+              }')
+            
+            # Add entry to changelog array
+            jq --argjson entry "$CHANGELOG_ENTRY" '. += [$entry]' $GITHUB_WORKSPACE/changelog.json > $GITHUB_WORKSPACE/changelog_temp.json
+            mv $GITHUB_WORKSPACE/changelog_temp.json $GITHUB_WORKSPACE/changelog.json
           fi
         done <<< "$CHANGED_FILES"
 
+    - name: Upload changelog artifact
+      if: steps.read_payload.outputs.request_type != 'delete'
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-changelog
+        path: changelog.json
+
+    #Step to update changelog information, similar to 'Upload output artifact' for changelog file.
     - name: Upload output artifact
       if: steps.read_payload.outputs.request_type != 'delete'
       uses: actions/upload-artifact@v4
@@ -185,9 +237,17 @@ jobs:
         fetch-depth: 0 
 
     - name: Download output artifact
+      if: needs.deploy.outputs.request_type != 'delete'
       uses: actions/download-artifact@v4
       with:
         name: terragrunt-output
+        path: ${{ needs.deploy.outputs.relative_path }}
+
+    - name: Download changelog artifact
+      if: needs.deploy.outputs.request_type != 'delete'
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-changelog
         path: ${{ needs.deploy.outputs.relative_path }}
 
     - name: Create and merge output PR
@@ -197,6 +257,10 @@ jobs:
         
         git checkout -b terragrunt-output
         git add ${{ needs.deploy.outputs.relative_path }}/output.json
+        
+        # Add the changelog file as well
+        git add ${{ needs.deploy.outputs.relative_path }}/changelog.json
+
         git commit -m "Add Terragrunt output"
         git push origin terragrunt-output
         
