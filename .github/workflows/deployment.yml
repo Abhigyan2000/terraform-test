@@ -161,6 +161,49 @@ jobs:
             echo "Executing destroy operation..."
             terragrunt run-all destroy \
               --terragrunt-non-interactive
+            
+            # Create changelog entry for delete operation
+            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$FULL_PAYLOAD_PATH")
+            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$FULL_PAYLOAD_PATH")
+            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$FULL_PAYLOAD_PATH")
+            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$FULL_PAYLOAD_PATH")
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            # Create changelog entry for deletion
+            CHANGELOG_ENTRY=$(jq -n \
+              --arg timestamp "$TIMESTAMP" \
+              --arg request_id "$REQUEST_ID" \
+              --arg account_id "$ACCOUNT_ID" \
+              --arg application_name "$APPLICATION_NAME" \
+              --arg environment_id "$ENVIRONMENT_ID" \
+              --arg resource_type "$RESOURCE_TYPE" \
+              --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
+              --arg region "${{ steps.read_payload.outputs.region }}" \
+              --arg status "deleted" \
+              --arg payload_path "$relative_path" \
+              '{
+                timestamp: $timestamp,
+                request_id: $request_id,
+                account_id: $account_id,
+                application_name: $application_name,
+                environment_id: $environment_id,
+                resource_type: $resource_type,
+                request_type: $request_type,
+                region: $region,
+                status: $status,
+                payload_path: $payload_path,
+                terraform_outputs: null
+              }')
+            
+            # Append entry to changelog array
+            jq --argjson entry "$CHANGELOG_ENTRY" '. += [$entry]' $GITHUB_WORKSPACE/changelog.json > $GITHUB_WORKSPACE/changelog_temp.json
+            mv $GITHUB_WORKSPACE/changelog_temp.json $GITHUB_WORKSPACE/changelog.json
+            
+            # Remove output.json file if it exists (since resources are deleted)
+            if [ -f "$GITHUB_WORKSPACE/output.json" ]; then
+              rm "$GITHUB_WORKSPACE/output.json"
+              echo "Removed output.json file as resources were deleted"
+            fi
           else
             echo "Executing apply operation..."
             terragrunt run-all apply \
@@ -211,7 +254,6 @@ jobs:
         done <<< "$CHANGED_FILES"
 
     - name: Upload changelog artifact
-      if: steps.read_payload.outputs.request_type != 'delete'
       uses: actions/upload-artifact@v4
       with:
         name: deployment-changelog
@@ -254,7 +296,6 @@ jobs:
         path: ${{ needs.deploy.outputs.relative_path }}
 
     - name: Download changelog artifact
-      if: needs.deploy.outputs.request_type != 'delete'
       uses: actions/download-artifact@v4
       with:
         name: deployment-changelog
@@ -266,17 +307,30 @@ jobs:
         git config --global user.email 'actions@github.com'
         
         git checkout -b terragrunt-output
-        git add ${{ needs.deploy.outputs.relative_path }}/output.json
         
-        # Add the changelog file as well
+        # Always add the changelog file
         git add ${{ needs.deploy.outputs.relative_path }}/changelog.json
+        
+        # Add output.json only if it's not a delete operation
+        if [ "${{ needs.deploy.outputs.request_type }}" != "delete" ]; then
+          git add ${{ needs.deploy.outputs.relative_path }}/output.json
+          COMMIT_MSG="Add Terragrunt output and changelog"
+          PR_TITLE="Add Terragrunt output and changelog"
+        else
+          # For delete operations, remove output.json if it exists
+          if [ -f "${{ needs.deploy.outputs.relative_path }}/output.json" ]; then
+            git rm ${{ needs.deploy.outputs.relative_path }}/output.json
+          fi
+          COMMIT_MSG="Update changelog for resource deletion"
+          PR_TITLE="Update changelog for resource deletion"
+        fi
 
-        git commit -m "Add Terragrunt output"
+        git commit -m "$COMMIT_MSG"
         git push origin terragrunt-output
         
         gh pr create \
-          --title "Add Terragrunt output" \
-          --body "This PR adds the Terragrunt output from the recent deployment.\nPath: ${{ needs.deploy.outputs.relative_path }}" \
+          --title "$PR_TITLE" \
+          --body "This PR updates the changelog from the recent deployment.\nPath: ${{ needs.deploy.outputs.relative_path }}\nOperation: ${{ needs.deploy.outputs.request_type }}" \
           --base main \
           --head terragrunt-output
         
