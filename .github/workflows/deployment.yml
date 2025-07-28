@@ -125,9 +125,11 @@ jobs:
           exit 1
         fi
         
-        # Initialize or load existing changelog
-        if [ -f "$GITHUB_WORKSPACE/changelog.json" ]; then
-          echo "Loading existing changelog"
+        # Load existing changelog from the specific path or create new one
+        CHANGELOG_PATH="$ROOT_DIR/$relative_path/changelog.json"
+        if [ -f "$CHANGELOG_PATH" ]; then
+          echo "Loading existing changelog from $CHANGELOG_PATH"
+          cp "$CHANGELOG_PATH" $GITHUB_WORKSPACE/changelog.json
         else
           echo "Creating new changelog"
           echo "[]" > $GITHUB_WORKSPACE/changelog.json
@@ -180,7 +182,6 @@ jobs:
               --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
               --arg region "${{ steps.read_payload.outputs.region }}" \
               --arg status "deleted" \
-              --arg payload_path "$relative_path" \
               '{
                 timestamp: $timestamp,
                 request_id: $request_id,
@@ -191,7 +192,6 @@ jobs:
                 request_type: $request_type,
                 region: $region,
                 status: $status,
-                payload_path: $payload_path,
                 terraform_outputs: null
               }')
             
@@ -231,7 +231,6 @@ jobs:
               --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
               --arg region "${{ steps.read_payload.outputs.region }}" \
               --arg status "deployed" \
-              --arg payload_path "$relative_path" \
               --argjson terraform_outputs "$TERRAFORM_OUTPUTS" \
               '{
                 timestamp: $timestamp,
@@ -243,7 +242,6 @@ jobs:
                 request_type: $request_type,
                 region: $region,
                 status: $status,
-                payload_path: $payload_path,
                 terraform_outputs: $terraform_outputs
               }')
             
