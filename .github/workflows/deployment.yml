@@ -85,11 +85,10 @@ jobs:
         FIRST_PAYLOAD=$(echo "$CHANGED_FILES" | head -n 1)
         echo "Processing payload file: $FIRST_PAYLOAD"
         
-        # Parse the nested JSON structure correctly - RequestParameters is a JSON string
-        REQUEST_PARAMS=$(jq -r '.inputs.RequestParameters // "{}"' "$FIRST_PAYLOAD")
-        REGION=$(echo "$REQUEST_PARAMS" | jq -r '.RegionId // .region // .Region // ""')
-        REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType // ""')
-        RESOURCE_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.ResourceType // ""')
+        # Parse the payload structure - it's a flat JSON structure from workflow-trigger.yml
+        REGION=$(jq -r '.RegionId // .region // .Region // ""' "$FIRST_PAYLOAD")
+        REQUEST_TYPE=$(jq -r '.RequestType // ""' "$FIRST_PAYLOAD")
+        RESOURCE_TYPE=$(jq -r '.ResourceType // ""' "$FIRST_PAYLOAD")
         
         if [ -z "$REGION" ]; then
           echo "Region not found in payload.json"
@@ -161,12 +160,11 @@ jobs:
             terragrunt run-all output -json > $GITHUB_WORKSPACE/output.json
             
             # Create changelog entry with request details
-            # Parse the nested JSON structure correctly - RequestParameters is a JSON string
-            REQUEST_PARAMS=$(jq -r '.inputs.RequestParameters // "{}"' "$payload")
-            REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId // "N/A"')
-            ACCOUNT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.AccountId // "N/A"')
-            APPLICATION_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.ApplicationName // "N/A"')
-            ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId // "N/A"')
+            # Parse the flat JSON structure from workflow-trigger.yml
+            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$payload")
+            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$payload")
+            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$payload")
+            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$payload")
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
             # Create changelog entry and append to array
